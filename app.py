@@ -1,8 +1,27 @@
 from flask import Flask, render_template, request, jsonify
 import os
+import subprocess
 from scraper import fetch_profile_metrics, init_driver
 
 app = Flask(__name__)
+
+def install_chrome():
+    """Install Google Chrome and Chromedriver on Render"""
+    if not os.path.exists("/usr/bin/google-chrome"):
+        print("Installing Google Chrome...")
+        subprocess.run("wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb", shell=True)
+        subprocess.run("sudo dpkg -i google-chrome-stable_current_amd64.deb", shell=True)
+        subprocess.run("sudo apt-get install -f -y", shell=True)
+
+    if not os.path.exists("/usr/bin/chromedriver"):
+        print("Installing ChromeDriver...")
+        subprocess.run("wget -q https://chromedriver.storage.googleapis.com/115.0.5790.102/chromedriver_linux64.zip", shell=True)
+        subprocess.run("unzip -o chromedriver_linux64.zip", shell=True)
+        subprocess.run("sudo mv chromedriver /usr/bin/chromedriver", shell=True)
+        subprocess.run("sudo chmod +x /usr/bin/chromedriver", shell=True)
+
+# Ensure Chrome is installed before anything else runs
+install_chrome()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
