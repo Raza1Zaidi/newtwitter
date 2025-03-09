@@ -1,7 +1,7 @@
 import os
 import subprocess
 from flask import Flask, render_template, request, jsonify
-from scraper import fetch_profile_metrics, init_driver
+from scraper_functions import fetch_profile_metrics, init_driver  # ✅ FIXED
 
 app = Flask(__name__)
 
