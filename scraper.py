@@ -1,73 +1,46 @@
-import json
-import time
-import random
-import gzip
-import csv
-from seleniumwire import webdriver  
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+import os
+import subprocess
+from flask import Flask, render_template, request, jsonify
+from scraper import fetch_profile_metrics, init_driver
 
-def init_driver():
-    """Initialize a headless Chrome browser with Selenium Wire."""
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    )
+app = Flask(__name__)
 
-    service = Service(executable_path="chromedriver")  # Render uses "chromedriver" in the same directory
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    return driver
+def install_chrome():
+    """Install Google Chrome and Chromedriver on Render"""
+    if not os.path.exists("/usr/bin/google-chrome"):
+        print("Installing Google Chrome...")
+        subprocess.run("wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb", shell=True)
+        subprocess.run("sudo dpkg -i google-chrome-stable_current_amd64.deb", shell=True)
+        subprocess.run("sudo apt-get install -f -y", shell=True)
 
-def fetch_profile_metrics(driver, auth_token, ct0, screen_names):
-    """Scrape Twitter profile metrics given session cookies and a list of screen names."""
-    results = {}
+    if not os.path.exists("/usr/bin/chromedriver"):
+        print("Installing ChromeDriver...")
+        subprocess.run("wget -q https://chromedriver.storage.googleapis.com/115.0.5790.102/chromedriver_linux64.zip", shell=True)
+        subprocess.run("unzip -o chromedriver_linux64.zip", shell=True)
+        subprocess.run("sudo mv chromedriver /usr/bin/chromedriver", shell=True)
+        subprocess.run("sudo chmod +x /usr/bin/chromedriver", shell=True)
 
-    driver.get("https://x.com")
-    time.sleep(3)
-    
-    # Inject session cookies
-    driver.add_cookie({"name": "auth_token", "value": auth_token, "domain": ".x.com"})
-    driver.add_cookie({"name": "ct0", "value": ct0, "domain": ".x.com"})
+# Ensure Chrome is installed before anything else runs
+install_chrome()
 
-    for screen_name in screen_names:
-        driver.requests.clear()
-        url = f"https://x.com/{screen_name}"
-        driver.get(url)
-        time.sleep(random.uniform(3, 6))
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        auth_token = request.form.get("auth_token")
+        ct0 = request.form.get("ct0")
+        profiles = request.form.get("profiles")
 
-        target_request = None
-        for request in driver.requests:
-            if request.response and "UserByScreenName" in request.url and screen_name.lower() in request.url.lower():
-                target_request = request
-                break
+        if not auth_token or not ct0 or not profiles:
+            return jsonify({"error": "All fields are required!"}), 400
 
-        if target_request:
-            try:
-                raw_body = target_request.response.body
-                try:
-                    body = raw_body.decode('utf-8')
-                except UnicodeDecodeError:
-                    body = gzip.decompress(raw_body).decode('utf-8')
+        screen_names = [name.strip() for name in profiles.split(",") if name.strip()]
 
-                data = json.loads(body)
-                legacy = data.get("data", {}).get("user", {}).get("result", {}).get("legacy", {})
+        driver = init_driver()
+        results = fetch_profile_metrics(driver, auth_token, ct0, screen_names)
 
-                metrics = {
-                    "followers_count": legacy.get("followers_count"),
-                    "friends_count": legacy.get("friends_count"),
-                    "listed_count": legacy.get("listed_count"),
-                    "location": legacy.get("location")
-                }
-                results[screen_name] = metrics
-            except Exception as e:
-                results[screen_name] = {"error": str(e)}
+        return jsonify(results)
 
-        time.sleep(random.uniform(5, 16))
+    return render_template("index.html")
 
-    driver.quit()
-    return results
+if __name__ == "__main__":
+    app.run(debug=True)
