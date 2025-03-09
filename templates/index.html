@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Scraper</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h2>Twitter Profile Scraper</h2>
+    <form id="scraper-form">
+        <label>Auth Token:</label>
+        <input type="text" name="auth_token" required>
+        <br>
+        <label>CT0 Token:</label>
+        <input type="text" name="ct0" required>
+        <br>
+        <label>Profiles (comma-separated):</label>
+        <input type="text" name="profiles" required>
+        <br>
+        <button type="submit">Start Scraping</button>
+    </form>
+
+    <h3>Results:</h3>
+    <table border="1" id="results-table">
+        <tr>
+            <th>Screen Name</th>
+            <th>Followers</th>
+            <th>Friends</th>
+            <th>Listed</th>
+            <th>Location</th>
+        </tr>
+    </table>
+
+    <script>
+        $("#scraper-form").submit(function(event) {
+            event.preventDefault();
+            $.post("/", $(this).serialize(), function(data) {
+                $("#results-table tr:not(:first)").remove();
+                for (const [screen_name, metrics] of Object.entries(data)) {
+                    $("#results-table").append(`
+                        <tr>
+                            <td>${screen_name}</td>
+                            <td>${metrics.followers_count || "N/A"}</td>
+                            <td>${metrics.friends_count || "N/A"}</td>
+                            <td>${metrics.listed_count || "N/A"}</td>
+                            <td>${metrics.location || "N/A"}</td>
+                        </tr>
+                    `);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
